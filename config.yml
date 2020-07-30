@@ -1,0 +1,821 @@
+# This code is licensed from CircleCI to the user under the MIT license. See
+# https://circleci.com/orbs/registry/licensing for details.
+commands:
+  delete-helm-release:
+    description: |
+      Deletes a helm release.
+      Requirements: helm should be installed on the cluster
+      and kubeconfig should be configured to connect to the cluster.
+    parameters:
+      helm-version:
+        default: v2.16.9
+        description: the helm client version to install. e.g. v2.4.0
+        type: string
+      keep-history:
+        default: false
+        description: |
+          Effective for helm 3 commands only.
+          Retains release history.
+        type: boolean
+      namespace:
+        default: ""
+        description: |
+          The kubernetes namespace that should be used.
+        type: string
+      no-output-timeout:
+        default: 30m
+        description: |
+          Elapsed time that the helm command can run on CircleCI without output.
+          The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
+        type: string
+      purge:
+        default: false
+        description: |
+          Effective for helm 2 commands only (purging is the default in helm 3)
+          Whether to remove the release from the store and make its name free for
+          later use
+        type: boolean
+      release-name:
+        description: |
+          Specify the release to be deleted.
+        type: string
+      tiller-namespace:
+        default: ""
+        description: |
+          Specify the namespace of Tiller
+        type: string
+      timeout:
+        default: ""
+        description: |
+          Specify a timeout value that will be passed as a --timeout argument
+          to the helm command. For helm 3, the unit of the duration must
+          be specified e.g. '300s'.
+        type: string
+      tls:
+        default: false
+        description: |
+          Enable TLS for the request
+        type: boolean
+      tls-ca-cert:
+        default: ""
+        description: |
+          Path to TLS CA certificate file
+        type: string
+      tls-cert:
+        default: ""
+        description: |
+          Path to TLS certificate file
+        type: string
+      tls-hostname:
+        default: ""
+        description: |
+          The server name used to verify the hostname on the returned
+          certificates from the server
+        type: string
+      tls-key:
+        default: ""
+        description: |
+          Path to TLS key file
+        type: string
+      tls-verify:
+        default: false
+        description: |
+          Enable TLS for request and verify remote
+        type: boolean
+    steps:
+    - install-helm-client:
+        version: << parameters.helm-version >>
+    - run:
+        command: |
+          RELEASE_NAME="<< parameters.release-name >>"
+          PURGE="<< parameters.purge >>"
+          KEEP_HISTORY="<< parameters.keep-history >>"
+          TIMEOUT="<< parameters.timeout >>"
+          NAMESPACE="<< parameters.namespace >>"
+          TLS="<< parameters.tls >>"
+          TLS_CA_CERT="<< parameters.tls-ca-cert >>"
+          TLS_CERT="<< parameters.tls-cert >>"
+          TLS_HOSTNAME="<< parameters.tls-hostname >>"
+          TLS_KEY="<< parameters.tls-key >>"
+          TLS_VERIFY="<< parameters.tls-verify >>"
+          TILLER_NAMESPACE="<< parameters.tiller-namespace >>"
+
+          if [ -n "${TIMEOUT}" ]; then
+            set -- "$@" --timeout="${TIMEOUT}"
+          fi
+          if [ -n "${NAMESPACE}" ]; then
+            set -- "$@" --namespace="${NAMESPACE}"
+          fi
+          if [ "${TLS}" == "true" ]; then
+            set -- "$@" --tls
+          fi
+          if [ -n "${TLS_CA_CERT}" ]; then
+            set -- "$@" --tls-ca-cert="${TLS_CA_CERT}"
+          fi
+          if [ -n "${TLS_CERT}" ]; then
+            set -- "$@" --tls-cert="${TLS_CERT}"
+          fi
+          if [ -n "${TLS_HOSTNAME}" ]; then
+            set -- "$@" --tls-hostname="${TLS_HOSTNAME}"
+          fi
+          if [ -n "${TLS_KEY}" ]; then
+            set -- "$@" --tls-key="${TLS_KEY}"
+          fi
+          if [ "${TLS_VERIFY}" == "true" ]; then
+            set -- "$@" --tls-verify
+          fi
+          if [ -n "${TILLER_NAMESPACE}" ]; then
+            set -- "$@" --tiller-namespace "${TILLER_NAMESPACE}"
+          fi
+
+          VERSION_2_MATCH="$(helm version --short -c | grep 'Client: v2' || true)"
+          if [ -n "${VERSION_2_MATCH}" ]; then
+            if [ "${PURGE}" == "true" ]; then
+              set -- "$@" --purge
+            fi
+          else
+            if [ "${KEEP_HISTORY}" == "true" ]; then
+              set -- "$@" --keep-history
+            fi
+          fi
+          helm delete "$@" << parameters.release-name >>
+        name: Delete helm release
+        no_output_timeout: << parameters.no-output-timeout >>
+  install-helm-chart:
+    description: |
+      Installs a helm chart.
+      Requirements: helm should be installed on the cluster
+      and kubeconfig should be configured to connect to the cluster.
+    parameters:
+      chart:
+        description: |
+          Specify for installation a chart reference (e.g. stable/mariadb),
+          or a path to a packaged chart (e.g. ./nginx-1.2.3.tgz),
+          or a path to an unpacked chart directory (e.g. ./nginx)
+          or an absolute URL (e.g. https://example.com/charts/nginx-1.2.3.tgz)
+        type: string
+      helm-version:
+        default: v2.16.9
+        description: the helm client version to install. e.g. v2.4.0
+        type: string
+      namespace:
+        default: ""
+        description: |
+          The kubernetes namespace that should be used.
+        type: string
+      no-output-timeout:
+        default: 30m
+        description: |
+          Elapsed time that the helm command can run on CircleCI without output.
+          The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
+        type: string
+      release-name:
+        default: ""
+        description: |
+          Specify a name for the release.
+        type: string
+      tiller-namespace:
+        default: ""
+        description: |
+          Specify the namespace of Tiller
+        type: string
+      tls:
+        default: false
+        description: |
+          Enable TLS for the request
+        type: boolean
+      tls-ca-cert:
+        default: ""
+        description: |
+          Path to TLS CA certificate file
+        type: string
+      tls-cert:
+        default: ""
+        description: |
+          Path to TLS certificate file
+        type: string
+      tls-hostname:
+        default: ""
+        description: |
+          The server name used to verify the hostname on the returned
+          certificates from the server
+        type: string
+      tls-key:
+        default: ""
+        description: |
+          Path to TLS key file
+        type: string
+      tls-verify:
+        default: false
+        description: |
+          Enable TLS for request and verify remote
+        type: boolean
+      update-repositories:
+        default: true
+        description: |
+          Choose to update repositories by running helm repo update.
+        type: boolean
+      values-to-override:
+        default: ""
+        description: |
+          Override values in a chart using the --set flag of the helm install
+          command. Format: key1=val1,key2=val2
+        type: string
+      wait:
+        default: true
+        description: |
+          Whether to wait for the installation to be complete
+        type: boolean
+    steps:
+    - install-helm-client:
+        version: << parameters.helm-version >>
+    - when:
+        condition: << parameters.update-repositories >>
+        steps:
+        - run:
+            command: |
+              helm repo update
+            name: Update repositories
+    - run:
+        command: |
+          RELEASE_NAME="<< parameters.release-name >>"
+          VALUES_TO_OVERRIDE="<< parameters.values-to-override >>"
+          NAMESPACE="<< parameters.namespace >>"
+          TLS="<< parameters.tls >>"
+          TLS_CA_CERT="<< parameters.tls-ca-cert >>"
+          TLS_CERT="<< parameters.tls-cert >>"
+          TLS_HOSTNAME="<< parameters.tls-hostname >>"
+          TLS_KEY="<< parameters.tls-key >>"
+          TLS_VERIFY="<< parameters.tls-verify >>"
+          TILLER_NAMESPACE="<< parameters.tiller-namespace >>"
+          WAIT="<< parameters.wait >>"
+          if [ -n "${VALUES_TO_OVERRIDE}" ]; then
+            set -- "$@" --set "${VALUES_TO_OVERRIDE}"
+          fi
+          if [ -n "${NAMESPACE}" ]; then
+            set -- "$@" --namespace="${NAMESPACE}"
+          fi
+          if [ "${TLS}" == "true" ]; then
+            set -- "$@" --tls
+          fi
+          if [ -n "${TLS_CA_CERT}" ]; then
+            set -- "$@" --tls-ca-cert="${TLS_CA_CERT}"
+          fi
+          if [ -n "${TLS_CERT}" ]; then
+            set -- "$@" --tls-cert="${TLS_CERT}"
+          fi
+          if [ -n "${TLS_HOSTNAME}" ]; then
+            set -- "$@" --tls-hostname="${TLS_HOSTNAME}"
+          fi
+          if [ -n "${TLS_KEY}" ]; then
+            set -- "$@" --tls-key="${TLS_KEY}"
+          fi
+          if [ "${TLS_VERIFY}" == "true" ]; then
+            set -- "$@" --tls-verify
+          fi
+          if [ -n "${TILLER_NAMESPACE}" ]; then
+            set -- "$@" --tiller-namespace "${TILLER_NAMESPACE}"
+          fi
+          if [ "${WAIT}" == "true" ]; then
+            set -- "$@" --wait
+          fi
+
+          VERSION_2_MATCH="$(helm version --short -c | grep 'Client: v2' || true)"
+          if [ -n "${VERSION_2_MATCH}" ]; then
+            if [ -n "${RELEASE_NAME}" ]; then
+              set -- "$@" --name "${RELEASE_NAME}"
+            fi
+            helm install << parameters.chart >> "$@"
+          else
+            if [ -n "${RELEASE_NAME}" ]; then
+              helm install "${RELEASE_NAME}" << parameters.chart >> "$@"
+            else
+              set -- "$@" --generate-name
+              helm install << parameters.chart >> "$@"
+            fi
+          fi
+        name: Install chart
+        no_output_timeout: << parameters.no-output-timeout >>
+  install-helm-client:
+    description: |
+      Install the helm client.
+      Defaults to the latest version of Helm 2.
+      To use Helm 3, specify a version e.g. "v3.0.0".
+
+      Requirements: curl
+    parameters:
+      version:
+        default: v2.16.9
+        description: the helm client version to install. e.g. v2.4.0
+        type: string
+    steps:
+    - run:
+        command: |
+          if which helm > /dev/null; then
+            echo "helm is already installed"
+            exit 0
+          fi
+          VERSION="<< parameters.version >>"
+          IS_VERSION_2="true"
+          if [ -n "${VERSION}" ]; then
+            set -- "$@" --version "${VERSION}"
+            if [ "${VERSION}" == "${VERSION#v2.}" ]; then
+              IS_VERSION_2="false"
+            fi
+          fi
+          INSTALL_SCRIPT="https://raw.githubusercontent.com/helm/helm/master/scripts/get"
+          curl "${INSTALL_SCRIPT}" > get_helm.sh
+          chmod 700 get_helm.sh
+          ./get_helm.sh "$@"
+          if [ "${IS_VERSION_2}" == "true" ]; then
+            helm init --client-only
+          else
+            helm repo add stable https://kubernetes-charts.storage.googleapis.com
+          fi
+        name: Install and init the helm client (if necessary)
+  install-helm-on-cluster:
+    description: |
+      Install helm 2 into an existing Kubernetes cluster.
+      (This command is not compatible with helm 3 which does not have a
+      Tiller component)
+      Note: Parameters like tiller-tls need to be set to
+      apply security configurations to the tiller configuration.
+
+      Requirements: kubeconfig should be configured to connect to the cluster.
+      kubectl is required if "enable-cluster-wide-admin-access" is set to true.
+    parameters:
+      enable-cluster-wide-admin-access:
+        default: false
+        description: |
+          Allow tiller to have admin access to the entire cluster
+          by creating a role binding with a cluster-admin role
+          and a service account with name as specified by the service-account
+          parameter or defaulting to "tiller".
+          Note: This is a convenience option but is typically not advisable
+          in a production cluster for security reasons.
+        type: boolean
+      service-account:
+        default: ""
+        description: |
+          Name of service account for Tiller to use.
+          Note: A role binding which specifies a role
+          and a service account with the specified name, must
+          be created in advance, unless
+          enable-cluster-wide-admin-access is set to true.
+        type: string
+      tiller-ca-cert:
+        default: ""
+        description: |
+          The path to CA root certificate
+        type: string
+      tiller-namespace:
+        default: ""
+        description: |
+          Specify the namespace of Tiller
+        type: string
+      tiller-tls:
+        default: false
+        description: |
+          Install Tiller with TLS enabled
+        type: boolean
+      tiller-tls-cert:
+        default: ""
+        description: |
+          The path to TLS certificate file to install with Tiller
+        type: string
+      tiller-tls-hostname:
+        default: ""
+        description: |
+          The server name used to verify the hostname on the returned
+          certificates from Tiller
+        type: string
+      tiller-tls-key:
+        default: ""
+        description: |
+          The path to TLS key file to install with Tiller
+        type: string
+      tiller-tls-verify:
+        default: false
+        description: |
+          Install Tiller with TLS enabled and to verify remote certificates
+        type: boolean
+      wait:
+        default: true
+        description: |
+          Block until Tiller is running and ready to receive requests
+        type: boolean
+    steps:
+    - install-helm-client
+    - when:
+        condition: << parameters.enable-cluster-wide-admin-access >>
+        steps:
+        - run:
+            command: |
+              SERVICE_ACCOUNT="<< parameters.service-account >>"
+              if [ -z "${SERVICE_ACCOUNT}" ]; then
+                SERVICE_ACCOUNT="tiller"
+              fi
+              kubectl create serviceaccount ${SERVICE_ACCOUNT}\
+                --namespace kube-system
+              kubectl create clusterrolebinding tiller-clusterrolebinding \
+                --clusterrole=cluster-admin \
+                --serviceaccount=kube-system:${SERVICE_ACCOUNT}
+            name: Create service account with cluster-admin role for Tiller
+    - run:
+        command: |
+          TILLER_TLS="<< parameters.tiller-tls >>"
+          TILLER_TLS_CERT="<< parameters.tiller-tls-cert >>"
+          TILLER_TLS_HOSTNAME="<< parameters.tiller-tls-hostname >>"
+          TILLER_TLS_KEY="<< parameters.tiller-tls-key >>"
+          TILLER_TLS_VERIFY="<< parameters.tiller-tls-verify >>"
+          TILLER_CA_CERT="<< parameters.tiller-ca-cert >>"
+          WAIT="<< parameters.wait >>"
+          SERVICE_ACCOUNT="<< parameters.service-account >>"
+          TILLER_NAMESPACE="<< parameters.tiller-namespace >>"
+          ENABLE_CLUSTER_ADMIN_ACCESS="<< parameters.enable-cluster-wide-admin-access >>"
+          if [ "${TILLER_TLS}" == "true" ]; then
+            set -- "$@" --tiller-tls
+          fi
+          if [ -n "${TILLER_TLS_CERT}" ]; then
+            set -- "$@" --tiller-tls-cert "${TILLER_TLS_CERT}"
+          fi
+          if [ -n "${TILLER_TLS_HOSTNAME}" ]; then
+            set -- "$@" --tiller-tls-hostname "${TILLER_TLS_HOSTNAME}"
+          fi
+          if [ -n "${TILLER_TLS_KEY}" ]; then
+            set -- "$@" --tiller-tls-key "${TILLER_TLS_KEY}"
+          fi
+          if [ "${TILLER_TLS_VERIFY}" == "true" ]; then
+            set -- "$@" --tiller-tls-verify
+          fi
+          if [ -n "${TILLER_CA_CERT}" ]; then
+            set -- "$@" --tiller-ca-cert "${TILLER_CA_CERT}"
+          fi
+          if [ -n "${SERVICE_ACCOUNT}" ]; then
+            set -- "$@" --service-account "${SERVICE_ACCOUNT}"
+          elif [ "${ENABLE_CLUSTER_ADMIN_ACCESS}" == "true" ]; then
+              set -- "$@" --service-account tiller
+          fi
+          if [ -n "${TILLER_NAMESPACE}" ]; then
+            set -- "$@" --tiller-namespace "${TILLER_NAMESPACE}"
+          fi
+          if [ "${WAIT}" == "true" ]; then
+            set -- "$@" --wait
+          fi
+          helm init "$@"
+        name: Install tiller into the cluster
+  upgrade-helm-chart:
+    description: |
+      Upgrades an existing helm chart
+      Requirements: helm should be installed on the cluster
+      and kubeconfig should be configured to connect to the cluster.
+    parameters:
+      chart:
+        default: ""
+        description: |
+          Specify for upgrade a chart reference (e.g. stable/mariadb),
+          or a path to a packaged chart (e.g. ./nginx-1.2.3.tgz),
+          or a path to an unpacked chart directory (e.g. ./nginx)
+          or an absolute URL (e.g. https://example.com/charts/nginx-1.2.3.tgz)
+        type: string
+      devel:
+        default: ""
+        description: |
+          Use development versions, too. Equivalent to version '>0.0.0-0'. If --version is set, this is ignored.
+        type: string
+      dry-run:
+        default: false
+        description: |
+          simulate an upgrade
+        type: boolean
+      force:
+        default: false
+        description: |
+          Use development versions, too. Equivalent to version '>0.0.0-0'. If --version is set, this is ignored.
+        type: boolean
+      helm-version:
+        default: v2.16.9
+        description: the helm client version to install. e.g. v2.4.0
+        type: string
+      namespace:
+        default: ""
+        description: |
+          The kubernetes namespace that should be used.
+        type: string
+      no-hooks:
+        default: false
+        description: |
+          This skips running hooks for the command
+        type: boolean
+      no-output-timeout:
+        default: 30m
+        description: |
+          Elapsed time that the helm command can run on CircleCI without output.
+          The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
+        type: string
+      recreate-pods:
+        default: false
+        description: |
+          performs pods restart for the resource if applicable
+        type: boolean
+      release-name:
+        default: ""
+        description: |
+          Specify a name for the release.
+        type: string
+      reset-values:
+        default: false
+        description: |
+          when upgrading, reset the values to the ones built into the chart
+        type: boolean
+      reuse-values:
+        default: false
+        description: |
+          when upgrading, reuse the last release's values and merge in any overrides from the command line via --set and -f. If '--reset-values' is specified, this is ignored.
+        type: boolean
+      tiller-namespace:
+        default: ""
+        description: |
+          Specify the namespace of Tiller
+        type: string
+      timeout:
+        default: ""
+        description: |
+          If timeout is reached, the release will be marked as FAILED.
+        type: string
+      tls:
+        default: false
+        description: |
+          Enable TLS for the request
+        type: boolean
+      tls-ca-cert:
+        default: ""
+        description: |
+          Path to TLS CA certificate file
+        type: string
+      tls-cert:
+        default: ""
+        description: |
+          Path to TLS certificate file
+        type: string
+      tls-hostname:
+        default: ""
+        description: |
+          The server name used to verify the hostname on the returned
+          certificates from the server
+        type: string
+      tls-key:
+        default: ""
+        description: |
+          Path to TLS key file
+        type: string
+      tls-verify:
+        default: false
+        description: |
+          Enable TLS for request and verify remote
+        type: boolean
+      update-repositories:
+        default: true
+        description: |
+          Choose to update repositories by running helm repo update.
+        type: boolean
+      values:
+        default: ""
+        description: |
+          specify values in a YAML file or a URL
+        type: string
+      values-to-override:
+        default: ""
+        description: |
+          Override values in a chart using the --set flag of the helm upgrade
+          command. Format: key1=val1,key2=val2
+        type: string
+      version:
+        default: ""
+        description: |
+          specify the exact chart version to use. If this is not specified, the latest version is used
+        type: string
+      wait:
+        default: true
+        description: |
+          Whether to wait for the installation to be complete.
+        type: boolean
+    steps:
+    - install-helm-client:
+        version: << parameters.helm-version >>
+    - when:
+        condition: << parameters.update-repositories >>
+        steps:
+        - run:
+            command: |
+              helm repo update
+            name: Update repositories
+    - run:
+        command: |
+          TIMEOUT="<< parameters.timeout >>"
+          WAIT="<< parameters.wait >>"
+          NO_HOOKS="<< parameters.no-hooks >>"
+          RECREATE_PODS="<< parameters.recreate-pods >>"
+          TLS="<< parameters.tls >>"
+          TLS_CA_CERT="<< parameters.tls-ca-cert >>"
+          TLS_CERT="<< parameters.tls-cert >>"
+          TLS_HOSTNAME="<< parameters.tls-hostname >>"
+          TLS_KEY="<< parameters.tls-key >>"
+          TLS_VERIFY="<< parameters.tls-verify >>"
+          TILLER_NAMESPACE="<< parameters.tiller-namespace >>"
+          NAMESPACE="<< parameters.namespace >>"
+          DEVEL="<< parameters.devel >>"
+          DRY_RUN="<< parameters.dry-run >>"
+          RESET_VALUES="<< parameters.reset-values >>"
+          REUSE_VALUES="<< parameters.reuse-values >>"
+          VALUES="<< parameters.values >>"
+          VERSION="<< parameters.version >>"
+          VALUES_TO_OVERRIDE="<< parameters.values-to-override >>"
+          if [ -n "${NAMESPACE}" ]; then
+            set -- "$@" --namespace="${NAMESPACE}"
+          fi
+          if [ -n "${TIMEOUT}" ]; then
+            set -- "$@" --timeout "${TIMEOUT}"
+          fi
+          if [ -n "${NO_HOOKS}" ]; then
+            set -- "$@" --no-hooks="${NO_HOOKS}"
+          fi
+          if [ "${RECREATE_PODS}"  == "true" ]; then
+            set -- "$@" --recreate-pods
+          fi
+          if [ "${WAIT}" == "true" ]; then
+            set -- "$@" --wait
+          fi
+          if [ "${TLS}" == "true" ]; then
+            set -- "$@" --tls
+          fi
+          if [ -n "${TLS_CA_CERT}" ]; then
+            set -- "$@" --tls-ca-cert="${TLS_CA_CERT}"
+          fi
+          if [ -n "${TLS_CERT}" ]; then
+            set -- "$@" --tls-cert="${TLS_CERT}"
+          fi
+          if [ -n "${TLS_HOSTNAME}" ]; then
+            set -- "$@" --tls-hostname="${TLS_HOSTNAME}"
+          fi
+          if [ -n "${TLS_KEY}" ]; then
+            set -- "$@" --tls-key="${TLS_KEY}"
+          fi
+          if [ "${TLS_VERIFY}" == "true" ]; then
+            set -- "$@" --tls-verify
+          fi
+          if [ -n "${TILLER_NAMESPACE}" ]; then
+            set -- "$@" --tiller-namespace "${TILLER_NAMESPACE}"
+          fi
+          if [ -n "${DEVEL}" ]; then
+            set -- "$@" --devel "${DEVEL}"
+          fi
+          if [ "${DRY_RUN}" == "true" ]; then
+            set -- "$@" --dry-run
+          fi
+          if [ "${RESET_VALUES}" == "true" ]; then
+            set -- "$@" --reset-values
+          fi
+          if [ "${REUSE_VALUES}" == "true" ]; then
+            set -- "$@" --reuse-values
+          fi
+          if [ -n "${VALUES}" ]; then
+            set -- "$@" --values "${VALUES}"
+          fi
+          if [ -n "${VALUES_TO_OVERRIDE}" ]; then
+            set -- "$@" --set "${VALUES_TO_OVERRIDE}"
+          fi
+          helm upgrade --install << parameters.release-name >> << parameters.chart >> "$@"
+        name: Upgrade or install chart
+        no_output_timeout: << parameters.no-output-timeout >>
+description: |
+  An orb for working with helm for Kubernetes deployments.
+display:
+  home_url: https://github.com/CircleCI-Public/helm-orb
+examples:
+  install-helm-chart-with-helm2:
+    description: |
+      Demonstrate installing a helm chart on a Kubernetes cluster, with
+      helm 2.
+    usage:
+      jobs:
+        delete-helm-release:
+          executor: aws-eks/python
+          parameters:
+            cluster-name:
+              description: Cluster name
+              type: string
+          steps:
+          - aws-eks/update-kubeconfig-with-authenticator:
+              cluster-name: << parameters.cluster-name >>
+          - helm/delete-helm-release:
+              purge: true
+              release-name: grafana-release
+              timeout: 600
+        install-helm-chart:
+          executor: aws-eks/python
+          parameters:
+            cluster-name:
+              description: Cluster name
+              type: string
+          steps:
+          - aws-eks/update-kubeconfig-with-authenticator:
+              cluster-name: << parameters.cluster-name >>
+          - helm/install-helm-chart:
+              chart: stable/grafana
+              release-name: grafana-release
+        install-helm-on-cluster:
+          executor: aws-eks/python
+          parameters:
+            cluster-name:
+              description: Cluster name
+              type: string
+          steps:
+          - aws-eks/update-kubeconfig-with-authenticator:
+              cluster-name: << parameters.cluster-name >>
+              install-kubectl: true
+          - helm/install-helm-on-cluster:
+              enable-cluster-wide-admin-access: true
+      orbs:
+        aws-eks: circleci/aws-eks@0.2
+        helm: circleci/helm@1.0
+      version: 2.1
+      workflows:
+        deployment:
+          jobs:
+          - aws-eks/create-cluster:
+              cluster-name: test-cluster
+          - install-helm-on-cluster:
+              cluster-name: test-cluster
+              requires:
+              - aws-eks/create-cluster
+          - install-helm-chart:
+              cluster-name: test-cluster
+              requires:
+              - install-helm-on-cluster
+          - delete-helm-release:
+              cluster-name: test-cluster
+              requires:
+              - install-helm-chart
+          - aws-eks/delete-cluster:
+              cluster-name: test-cluster
+              requires:
+              - delete-helm-release
+              wait: true
+  install-helm-chart-with-helm3:
+    description: |
+      Demonstrate installing a helm chart on a Kubernetes cluster, with
+      helm 3.
+    usage:
+      jobs:
+        delete-helm-release:
+          executor: aws-eks/python
+          parameters:
+            cluster-name:
+              description: Cluster name
+              type: string
+          steps:
+          - aws-eks/update-kubeconfig-with-authenticator:
+              cluster-name: << parameters.cluster-name >>
+          - helm/delete-helm-release:
+              helm-version: v3.2.4
+              release-name: grafana-release
+              timeout: 600s
+        install-helm-chart:
+          executor: aws-eks/python
+          parameters:
+            cluster-name:
+              description: Cluster name
+              type: string
+          steps:
+          - aws-eks/update-kubeconfig-with-authenticator:
+              cluster-name: << parameters.cluster-name >>
+          - helm/install-helm-chart:
+              chart: stable/grafana
+              helm-version: v3.2.4
+              release-name: grafana-release
+      orbs:
+        aws-eks: circleci/aws-eks@0.2
+        helm: circleci/helm@1.0
+      version: 2.1
+      workflows:
+        deployment:
+          jobs:
+          - aws-eks/create-cluster:
+              cluster-name: test-cluster
+          - install-helm-chart:
+              cluster-name: test-cluster
+              requires:
+              - aws-eks/create-cluster
+          - delete-helm-release:
+              cluster-name: test-cluster
+              requires:
+              - install-helm-chart
+          - aws-eks/delete-cluster:
+              cluster-name: test-cluster
+              requires:
+              - delete-helm-release
+              wait: true
+orbs:
+  kubernetes: circleci/kubernetes@0.2.0
+version: 2.1
